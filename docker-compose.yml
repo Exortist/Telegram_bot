@@ -1,10 +1,7 @@
 version: '3'
 services:
   bot:
-    #image: todo/telebot
-    build:
-      context: "."
-      dockerfile: Dockerfile
+    image: gitlab.twinscom.ru:5050/ansible/ansible_telegram_bot
     env_file:
       - .env
     restart: always
