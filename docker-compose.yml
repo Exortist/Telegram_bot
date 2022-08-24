@@ -1,0 +1,10 @@
+version: '3'
+services:
+  bot:
+    #image: todo/telebot
+    build:
+      context: "."
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    restart: always

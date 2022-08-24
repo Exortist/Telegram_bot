@@ -1,0 +1,7 @@
+requests
+BeautifulSoup4
+telebot
+pyTelegramBotAPI
+loguru
+pyfiglet
+pillow
