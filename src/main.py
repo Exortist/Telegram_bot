@@ -1,3 +1,5 @@
+import enum
+import sys
 import requests
 import logging
 import os
@@ -20,6 +22,17 @@ from utils import (
 )
 from telebot import types
 
+
+class Commands(enum.Enum):
+    UNSEE                       = 1
+    NEXT                        = 2
+    PREVIOUS                    = 3
+    HOSTTEMPLATE                = 4
+    BACHTOSERVERLIST            = 5
+    RUNTEMPLATEFORHOST          = 6
+    RUNTEMPLATE                 = 7
+    SELECTPLAYBOOKFORHOST       = 8
+    
 
 class Main:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -64,14 +77,15 @@ class Main:
         def _proccess_callback_query(call):
             data = json.loads(call.data)
             queryHeader = data[0]
+            print(queryHeader)
 
-            match queryHeader:
-                case "unsee":
+            match Commands(int(queryHeader)):
+                case Commands.UNSEE:
                     logger.debug("unsee")
                     self.bot.delete_message(
                         call.message.chat.id, call.message.message_id
                     )
-                case "next":
+                case Commands.NEXT:
                     try:
                         self.page += 1
                         list_hosts = self.list_hosts(call, self.page)
@@ -87,7 +101,7 @@ class Main:
                             call.message.chat.id, "Не удаётся получить список хостов"
                         )
                         return
-                case "previous":
+                case Commands.PREVIOUS:
                     try:
                         self.page -= 1
                         list_hosts = self.list_hosts(call, self.page)
@@ -103,10 +117,12 @@ class Main:
                             call.message.chat.id, "Не удаётся получить список хостов"
                         )
                         return
-                case "hostTemplates":
+                case Commands.HOSTTEMPLATE:
                     try:
                         
                         templates = self.select_template(call)
+                        
+
                         self.bot.edit_message_text(
                             text=templates.get("text"),
                             reply_markup=templates.get("markup"),
@@ -116,12 +132,13 @@ class Main:
                         )
                     except Exception as e:
                         logger.error(e)
+                        logger.trace(e)
                         self.bot.send_message(
                             call.message.chat.id, "Не удаётся получить список хостов"
                         )
                         return
 
-                case "backToServerList":
+                case Commands.BACHTOSERVERLIST:
                     try:
                         list_hosts = self.list_hosts(call, self.page)
                         self.bot.edit_message_text(
@@ -136,12 +153,12 @@ class Main:
                             call.message.chat.id, "Не удаётся получить список хостов"
                         )
                         return
-                case "runTemplateForHost":
+                case Commands.RUNTEMPLATEFORHOST:
                     self.run_template_for_host(call)
-                case "runTemplate":
+                case Commands.RUNTEMPLATE:
                     # runTemplate()
                     pass
-                case "selectPlaybookForHost":
+                case Commands.SELECTPLAYBOOKFORHOST:
                     self.hosts(call.message)
 
         self.bot.polling(none_stop=True)
@@ -161,10 +178,10 @@ class Main:
             self.print_id(msg)
             return
         menu_text = "Выберите действие"
-
+        print(str(Commands.SELECTPLAYBOOKFORHOST.value))
         host_button = types.InlineKeyboardButton(
             text="Запустить Playbook для конкретного Хоста",
-            callback_data=callback_data_dumps(["selectPlaybookForHost"]),
+            callback_data=callback_data_dumps([Commands.SELECTPLAYBOOKFORHOST.value]),
         )
         markup = types.InlineKeyboardMarkup()
         markup.add(host_button)
@@ -177,6 +194,7 @@ class Main:
             return
 
         try:
+            print(123)
             list_hosts = self.list_hosts(msg, self.page)
             self.bot.send_message(
                 msg.chat.id,
@@ -197,7 +215,7 @@ class Main:
             types.InlineKeyboardButton(
                 text="Закрыть",
                 row_width=3,
-                callback_data=callback_data_dumps(["unsee"]),
+                callback_data=callback_data_dumps([Commands.UNSEE.value]),
             )
         )
 
@@ -212,13 +230,13 @@ class Main:
         if results["next"] is not None:
             navButtons.append(
                 types.InlineKeyboardButton(
-                    text="Вперёд", callback_data=callback_data_dumps(["next"])
+                    text="Вперёд", callback_data=callback_data_dumps([Commands.NEXT.value])
                 )
             )
         if results["previous"] is not None:
             navButtons.append(
                 types.InlineKeyboardButton(
-                    text="Назад", callback_data=callback_data_dumps(["previous"])
+                    text="Назад", callback_data=callback_data_dumps([Commands.PREVIOUS.value])
                 )
             )
 
@@ -226,7 +244,7 @@ class Main:
         for host in results["results"]:
 
             text += f'{host["id"]}. {host["name"]}\n'
-            callback_dict = ["hostTemplates", {"h_i": host["id"], "h_n": host["name"]}]
+            callback_dict = [Commands.HOSTTEMPLATE.value, {"h_i": host["id"], "h_n": host["name"]}]
             buttons.append(
                 types.InlineKeyboardButton(
                     text=f'{host["name"]}', callback_data=str(json.dumps(callback_dict))
@@ -253,7 +271,7 @@ ID  NAME\n"""
             markup = types.InlineKeyboardMarkup()
             back_button = types.InlineKeyboardButton(
                 text="Вернуться",
-                callback_data=str(json.dumps(["backToServerList"])),
+                callback_data=str(json.dumps([Commands.BACHTOSERVERLIST.value])),
             )
            
             for template in get_templates("GET", self.awxUrl, headers=self.headers)[
@@ -264,7 +282,7 @@ ID  NAME\n"""
                     
                     text += f"{str(template['id'])} {template['name']}\n"
                     callback_dict = [
-                        "runTemplateForHost",
+                        Commands.RUNTEMPLATEFORHOST.value,
                         {"h_n": host["h_n"], "t_i": template["id"]},
                     ]
 
