@@ -24,15 +24,15 @@ from telebot import types
 
 
 class Commands(enum.Enum):
-    UNSEE                       = 1
-    NEXT                        = 2
-    PREVIOUS                    = 3
-    HOSTTEMPLATE                = 4
-    BACHTOSERVERLIST            = 5
-    RUNTEMPLATEFORHOST          = 6
-    RUNTEMPLATE                 = 7
-    SELECTPLAYBOOKFORHOST       = 8
-    
+    UNSEE = 1
+    NEXT = 2
+    PREVIOUS = 3
+    HOSTTEMPLATE = 4
+    BACHTOSERVERLIST = 5
+    RUNTEMPLATEFORHOST = 6
+    GETSTDOUT = 7
+    SELECTPLAYBOOKFORHOST = 8
+
 
 class Main:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -43,17 +43,16 @@ class Main:
         "Authorization": "Bearer " + awxWriteToken,
         "content-type": "application/json",
     }
-    users = os.getenv("USERS").split(';')
-    templates = os.getenv("TEMPLATES").split(';')
-    
+    users = os.getenv("USERS").split(";")
+    templates = os.getenv("TEMPLATES").split(";")
+
     page = 1
-    
+
     def __init__(self):
-        
+
         self.bot = telebot.TeleBot(self.token)
-        
+
         logger.debug("Init")
-        print(type(self.users))
         
 
     def startBot(self):
@@ -62,7 +61,7 @@ class Main:
 
         @self.bot.message_handler(commands=["start"])
         def _proccess_command_start(msg):
-            
+
             self.start(msg)
 
         @self.bot.message_handler(commands=["menu"])
@@ -77,7 +76,7 @@ class Main:
         def _proccess_callback_query(call):
             data = json.loads(call.data)
             queryHeader = data[0]
-            print(queryHeader)
+            
 
             match Commands(int(queryHeader)):
                 case Commands.UNSEE:
@@ -119,9 +118,8 @@ class Main:
                         return
                 case Commands.HOSTTEMPLATE:
                     try:
-                        
+
                         templates = self.select_template(call)
-                        
 
                         self.bot.edit_message_text(
                             text=templates.get("text"),
@@ -155,11 +153,25 @@ class Main:
                         return
                 case Commands.RUNTEMPLATEFORHOST:
                     self.run_template_for_host(call)
-                case Commands.RUNTEMPLATE:
-                    # runTemplate()
-                    pass
                 case Commands.SELECTPLAYBOOKFORHOST:
                     self.hosts(call.message)
+                case Commands.GETSTDOUT:
+                    
+                    
+                    data = data[1]
+                    html = get_stdout(
+                        self.awxUrl,
+                        headers=self.headers,
+                        page_id=data.get("page_id")
+                    )
+                    soup = BeautifulSoup(html, "html.parser")
+
+                    stdout = soup.findAll("div", {"class": "response-info"})
+
+                    file_obj = io.BytesIO(stdout[0].encode())
+
+                    file_obj.name = "stdout.html"
+                    self.bot.send_document(data.get("chat_id"), file_obj)
 
         self.bot.polling(none_stop=True)
 
@@ -178,7 +190,6 @@ class Main:
             self.print_id(msg)
             return
         menu_text = "Выберите действие"
-        print(str(Commands.SELECTPLAYBOOKFORHOST.value))
         host_button = types.InlineKeyboardButton(
             text="Запустить Playbook для конкретного Хоста",
             callback_data=callback_data_dumps([Commands.SELECTPLAYBOOKFORHOST.value]),
@@ -194,7 +205,6 @@ class Main:
             return
 
         try:
-            print(123)
             list_hosts = self.list_hosts(msg, self.page)
             self.bot.send_message(
                 msg.chat.id,
@@ -230,13 +240,15 @@ class Main:
         if results["next"] is not None:
             navButtons.append(
                 types.InlineKeyboardButton(
-                    text="Вперёд", callback_data=callback_data_dumps([Commands.NEXT.value])
+                    text="Вперёд",
+                    callback_data=callback_data_dumps([Commands.NEXT.value]),
                 )
             )
         if results["previous"] is not None:
             navButtons.append(
                 types.InlineKeyboardButton(
-                    text="Назад", callback_data=callback_data_dumps([Commands.PREVIOUS.value])
+                    text="Назад",
+                    callback_data=callback_data_dumps([Commands.PREVIOUS.value]),
                 )
             )
 
@@ -244,7 +256,10 @@ class Main:
         for host in results["results"]:
 
             text += f'{host["id"]}. {host["name"]}\n'
-            callback_dict = [Commands.HOSTTEMPLATE.value, {"h_i": host["id"], "h_n": host["name"]}]
+            callback_dict = [
+                Commands.HOSTTEMPLATE.value,
+                {"h_i": host["id"], "h_n": host["name"]},
+            ]
             buttons.append(
                 types.InlineKeyboardButton(
                     text=f'{host["name"]}', callback_data=str(json.dumps(callback_dict))
@@ -258,7 +273,7 @@ class Main:
         if is_admin(not call.from_user.id, self.users):
             self.bot.send_message(call.chat.id, "Вы не администратор")
             return
-        
+
         data = json.loads(call.data)
         host = data[1]
         text = f"""Вы выбрали Хост: <b>{host['h_n']}</b>\nСписок шаблонов
@@ -273,13 +288,13 @@ ID  NAME\n"""
                 text="Вернуться",
                 callback_data=str(json.dumps([Commands.BACHTOSERVERLIST.value])),
             )
-           
+
             for template in get_templates("GET", self.awxUrl, headers=self.headers)[
                 "results"
             ]:
-                
+
                 if str(template["id"]) in templates:
-                    
+
                     text += f"{str(template['id'])} {template['name']}\n"
                     callback_dict = [
                         Commands.RUNTEMPLATEFORHOST.value,
@@ -288,7 +303,7 @@ ID  NAME\n"""
 
                     buttons.append(
                         types.InlineKeyboardButton(
-                            text=f'Шаблон №{template["id"]}',
+                            text=f'{template["id"]}',
                             callback_data=str(json.dumps(callback_dict)),
                         )
                     )
@@ -340,23 +355,17 @@ ID  NAME\n"""
                     headers=self.headers,
                     data=host,
                 ).text
-                # os.remove(f"./capcha_{chat_id}.tmp")
-                sleep(10)
-                self.bot.send_message(chat_id, "Шаблон Выполнился Успешно\n")
-
-                html = get_stdout(
-                    self.awxUrl,
-                    headers=self.headers,
-                    page_id=json.loads(res).get("id"),
+                page_id = json.loads(res).get("id")
+                markup = types.InlineKeyboardMarkup()
+                stdout = types.InlineKeyboardButton(
+                    text="Получить Лог",
+                    callback_data=str(json.dumps([Commands.GETSTDOUT.value, {"page_id": page_id, "chat_id": chat_id}])),
                 )
-                soup = BeautifulSoup(html, "html.parser")
-
-                stdout = soup.findAll("div", {"class": "response-info"})
-
-                file_obj = io.BytesIO(stdout[0].encode())
-
-                file_obj.name = "stdout.html"
-                self.bot.send_document(chat_id, file_obj)
+                markup.add(stdout)
+                
+                self.bot.send_message(
+                    chat_id, "Шаблон Выполнился Успешно\n", reply_markup=markup
+                )
 
                 logger.debug(
                     f"Пользователь {data.from_user.username} запустил шаблон {template_id} на хосте {host_name}"

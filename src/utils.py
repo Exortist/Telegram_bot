@@ -64,4 +64,4 @@ def confirm_action():
     draw_text.text(
         (10, 10), pyfiglet.Figlet().renderText(check_string), fill=("#1C0606")
     )
-    return {"capcha_img": image, "capcha_num": str(check_number)}
+    return {"capcha_img": image, "capcha_num": str(check_string)}
