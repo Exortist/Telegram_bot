@@ -68,10 +68,6 @@ class Main:
         def _proccess_command_menu(msg):
             self.menu(msg)
 
-        @self.bot.message_handler(commands=["getID"])
-        def _proccess_command_printid(msg):
-            self.print_id(msg)
-
         @self.bot.callback_query_handler(func=lambda call: True)
         def _proccess_callback_query(call):
             data = json.loads(call.data)
@@ -87,6 +83,10 @@ class Main:
                 case Commands.NEXT:
                     try:
                         self.page += 1
+                        if self.list_hosts(call, self.page) == None: return
+                        if not is_admin(call.from_user.id, self.users):
+                            self.not_admin(call.message, 'попытался просмотреть список хостов на следуущей странице')
+                            return
                         list_hosts = self.list_hosts(call, self.page)
                         self.bot.edit_message_text(
                             text=list_hosts.get("text"),
@@ -103,6 +103,10 @@ class Main:
                 case Commands.PREVIOUS:
                     try:
                         self.page -= 1
+                        if self.list_hosts(call, self.page) == None: return
+                        if not is_admin(call.from_user.id, self.users):
+                            self.not_admin(call.message, 'попытался просмотреть список хостов на предыдущей странице')
+                            return
                         list_hosts = self.list_hosts(call, self.page)
                         self.bot.edit_message_text(
                             text=list_hosts.get("text"),
@@ -118,7 +122,8 @@ class Main:
                         return
                 case Commands.HOSTTEMPLATE:
                     try:
-
+                        if self.select_template(call) == None:
+                            return
                         templates = self.select_template(call)
 
                         self.bot.edit_message_text(
@@ -132,7 +137,7 @@ class Main:
                         logger.error(e)
                         logger.trace(e)
                         self.bot.send_message(
-                            call.message.chat.id, "Не удаётся получить список хостов"
+                            call.message.chat.id, "Не удаётся получить список шаблонов"
                         )
                         return
 
@@ -156,38 +161,40 @@ class Main:
                 case Commands.SELECTPLAYBOOKFORHOST:
                     self.hosts(call.message)
                 case Commands.GETSTDOUT:
-                    
-                    
                     data = data[1]
-                    html = get_stdout(
-                        self.awxUrl,
-                        headers=self.headers,
-                        page_id=data.get("page_id")
-                    )
-                    soup = BeautifulSoup(html, "html.parser")
+                    try:
+                        
+                        logger.info(f"Пользователь {call.from_user.full_name} ({call.message.chat.id}) запросил лог задачи №{data.get('job_id')}")
+                        html = get_stdout(
+                            self.awxUrl,
+                            headers=self.headers,
+                            job_id=data.get("job_id")
+                        )
+                        soup = BeautifulSoup(html, "html.parser")
 
-                    stdout = soup.findAll("div", {"class": "response-info"})
+                        stdout = soup.findAll("div", {"class": "response-info"})
 
-                    file_obj = io.BytesIO(stdout[0].encode())
+                        file_obj = io.BytesIO(stdout[0].encode())
 
-                    file_obj.name = "stdout.html"
-                    self.bot.send_document(data.get("chat_id"), file_obj)
-
+                        file_obj.name = "stdout.html"
+                        self.bot.send_document(data.get("chat_id"), file_obj)
+                    except Exception as e:
+                        logger.error(e)
+                        self.bot.send_message("Не удалось получить лог с сервера")
+                        
         self.bot.polling(none_stop=True)
 
     def start(self, msg):
-        if is_admin(msg.from_user.id, self.users):
-            self.bot.send_message(msg.chat.id, "Вы <b>АДМИНИСТРАТОР</b>", "html")
-            self.menu(msg)
-
-        else:
-            self.bot.send_message(msg.chat.id, "Вы не <b>АДМИНИСТРАТОР</b>", "html")
-            self.bot.send_message(msg.chat.id, "/getID -  Получить ID")
+        if not is_admin(msg.chat.id, self.users):
+            self.not_admin(msg, 'нажал кнупку START')
+            return
+        self.bot.send_message(msg.chat.id, "Вы <b>АДМИНИСТРАТОР</b>", "html")
+        self.menu(msg)
+            
 
     def menu(self, msg):
-        if is_admin(not msg.from_user.id, self.users):
-            self.bot.send_message(msg.chat.id, "Вы не администратор")
-            self.print_id(msg)
+        if not is_admin(msg.chat.id, self.users):
+            self.not_admin(msg, 'попытался вывести кнупку меню')
             return
         menu_text = "Выберите действие"
         host_button = types.InlineKeyboardButton(
@@ -201,9 +208,11 @@ class Main:
         )
 
     def hosts(self, msg):
-        if is_admin(not msg.from_user.id, self.users):
+        
+        if not is_admin(msg.chat.id, self.users):
+            self.not_admin(msg, 'попытался получить список хостов')
             return
-
+        # TODO: Разобраться с ошибков при возвращении из метода list_hosts NULL
         try:
             list_hosts = self.list_hosts(msg, self.page)
             self.bot.send_message(
@@ -218,9 +227,11 @@ class Main:
             return
 
     def list_hosts(self, msg, pg):
+        
+        
         buttons = []
         navButtons = []
-
+        
         navButtons.append(
             types.InlineKeyboardButton(
                 text="Закрыть",
@@ -270,8 +281,8 @@ class Main:
         return {"text": text, "markup": markup}
 
     def select_template(self, call):
-        if is_admin(not call.from_user.id, self.users):
-            self.bot.send_message(call.chat.id, "Вы не администратор")
+        if not is_admin(call.message.chat.id, self.users):
+            self.not_admin(call.message, 'попытался список шаблонов')
             return
 
         data = json.loads(call.data)
@@ -318,8 +329,8 @@ ID  NAME\n"""
 
     def run_template_for_host(self, data):
 
-        if is_admin(not data.from_user.id, self.users):
-            self.bot.send_message(data.message.chat.id, "Вы не администратор")
+        if not is_admin(data.message.chat.id, self.users):
+            self.not_admin(data.message, 'попытался выполнить шаблон')
             return
 
         template_data = json.loads(data.data)
@@ -355,20 +366,20 @@ ID  NAME\n"""
                     headers=self.headers,
                     data=host,
                 ).text
-                page_id = json.loads(res).get("id")
+                job_id = json.loads(res).get("id")
                 markup = types.InlineKeyboardMarkup()
                 stdout = types.InlineKeyboardButton(
                     text="Получить Лог",
-                    callback_data=str(json.dumps([Commands.GETSTDOUT.value, {"page_id": page_id, "chat_id": chat_id}])),
+                    callback_data=str(json.dumps([Commands.GETSTDOUT.value, {"job_id": job_id, "chat_id": chat_id}])),
                 )
                 markup.add(stdout)
                 
                 self.bot.send_message(
-                    chat_id, "Шаблон Выполнился Успешно\n", reply_markup=markup
+                    chat_id, f"Шаблон №{template_id} успешно выполнился на хосте {host_name} c номеров задачи {job_id}\n", reply_markup=markup
                 )
 
-                logger.debug(
-                    f"Пользователь {data.from_user.username} запустил шаблон {template_id} на хосте {host_name}"
+                logger.info(
+                    f"Пользователь {data.from_user.full_name} ({chat_id}) запустил шаблон {template_id} на хосте {host_name} c номеров задачи {job_id}"
                 )
 
             else:
@@ -377,11 +388,14 @@ ID  NAME\n"""
                     chat_id, "Капча введена не верно\nШаблон Не выполнился\n"
                 )
         except Exception as e:
-            print(e)
+            logger.error(e)
             self.bot.send_message(chat_id, "Произошла ошибка")
 
     def print_id(self, msg):
-        self.bot.send_message(msg.chat.id, "ID Пользователя - " + str(msg.from_user.id))
-
+        return "Ваш ID - " + str(msg.chat.id)
+    def not_admin(self, msg, text):
+        logger.info(f"Пользователь {msg.chat.username} ({msg.chat.id}) " + text)
+        self.bot.send_message(msg.chat.id, f"Вы не являетесь <b>АДМИНИСТРАТОРОМ</b>\n{self.print_id(msg)}", parse_mode='html')
+        
 
 Main().startBot()

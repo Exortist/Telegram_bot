@@ -29,8 +29,8 @@ def get_templates(method, url, headers):
     )
 
 
-def get_stdout(url, headers, page_id):
-    return request("GET", url + f"/api/v2/jobs/{page_id}/stdout/", headers=headers).text
+def get_stdout(url, headers, job_id):
+    return request("GET", url + f"/api/v2/jobs/{job_id}/stdout/", headers=headers).text
 
 
 def run_template(method, url, headers, inventory_json):
