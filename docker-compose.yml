@@ -4,4 +4,6 @@ services:
     image: gitlab.twinscom.ru:5050/ansible/ansible_telegram_bot
     env_file:
       - .env
+    volumes:
+      - /root/log/ansible_telegram_bot:/var/log/ansible_telegram_bot  
     restart: always
