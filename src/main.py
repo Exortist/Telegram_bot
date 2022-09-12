@@ -55,7 +55,7 @@ class Main:
             "/var/log/ansible_telegram_bot/output.log",
             rotation="128 MB",
             retention="180 days",
-            compression="",
+            compression="zip",
         )
 
         logger.debug("Init")
