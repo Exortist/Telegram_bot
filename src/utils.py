@@ -5,13 +5,12 @@ from requests import request
 from PIL import Image, ImageDraw
 
 
-
-
 def is_admin(user_id, users):
-    
+
     if str(user_id) in users:
         return True
     return False
+
 
 def get_id(message):
     return message.from_user.id

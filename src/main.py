@@ -51,7 +51,12 @@ class Main:
     def __init__(self):
 
         self.bot = telebot.TeleBot(self.token)
-        logger.add("/var/log/ansible_telegram_bot/output.log", rotation="128 MB", retention="180 days", compression="gz")
+        logger.add(
+            "/var/log/ansible_telegram_bot/output.log",
+            rotation="128 MB",
+            retention="180 days",
+            compression="",
+        )
 
         logger.debug("Init")
 

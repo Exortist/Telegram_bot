@@ -9,6 +9,6 @@ COPY . /app
 
 
 
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r --default-timeout=100 requirements.txt
 
 CMD ["python3.10", "src/main.py"]
