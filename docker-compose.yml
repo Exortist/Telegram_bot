@@ -5,5 +5,7 @@ services:
     env_file:
       - .env
     volumes:
-      - /root/log/ansible_telegram_bot:/var/log/ansible_telegram_bot  
+      - /root/log/ansible_telegram_bot:/var/log/ansible_telegram_bot
+      - /etc/localtime:/etc/localtime:ro
+
     restart: always
